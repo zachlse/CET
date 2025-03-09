@@ -1,0 +1,154 @@
+%Lim Shao En
+%20618488
+clear all;
+clc;
+
+c=3*10^8; % speed of light
+f=[2.4*10^9 5.8*10^9];
+lambda=c./f;
+beta=2*pi./lambda; % wave number
+
+% Permittivity
+e1=1; % air
+e2=3; % wall
+
+% Boundaries
+top_wall=6;
+bottom_wall=0;
+
+% Transmitter and receiver location (2D)
+tx=[0,4];
+p=[10,3];
+x=10:0.05:22;
+
+% Assign arrays
+direct_ray=zeros(length(x),2);
+total_ray=zeros(length(x),2,6);
+top_reflection=zeros(length(x),2,5);
+bottom_reflection=zeros(length(x),2,5);
+
+for i=1:2
+    % Use distance formula to calculate the length
+    r=sqrt((x-tx(1)).^2+1);
+    
+    % Electric field of direct ray 
+    direct_ray(:,i)=(1./r).*exp(-1j.*beta(i).*r);
+    
+    % Initialize total ray with direct ray
+    total_ray(:,i,1)=direct_ray(:,i);
+    
+    % Reflected image source coordinates 
+    tx_top=[0,2*top_wall-tx(2)];
+    tx_bottom=[0,2*bottom_wall-tx(2)];
+    
+    % Distance of reflected image source to tx(p to q) 
+    r_top=sqrt((x-tx_top(1)).^2+(p(2)-tx_top(2)).^2);
+    r_bottom=sqrt((x-tx_bottom(1)).^2+(p(2)-tx_bottom(2)).^2);
+
+    % Angle of incident and transmission
+    theta_i=atan((p(2)-tx(2))./(x-tx(1)));
+    theta_t=asin(sqrt(e1/e2)*sin(theta_i));
+
+    % Gamma (reflection coefficient)
+    gamma=(cos(theta_i)-sqrt(e2/e1)*cos(theta_t))./(cos(theta_i)+sqrt(e2/e1)*cos(theta_t));
+
+    % Magnitude of reflected path electric field
+    for order=1:5
+       top_reflection(:,i,order)=gamma.*(1./(order*r_top)).*exp(-1j.*(beta(i).*order.*r_top+pi.*order));
+       bottom_reflection(:,i,order)=gamma.*(1./(order*r_bottom)).*exp(-1j.*(beta(i).*order.*r_bottom+pi.*order));
+       
+       % Calculate and store total electric field for order 1 to 5
+       total_ray(:,i,order+1)=total_ray(:,i,order)+top_reflection(:,i,order)+bottom_reflection(:,i,order);
+    end
+end
+
+%this section would produce a figure with 2 subplots
+figure;
+colors={'b','m','g','c','r',[0.5,0,0.5]}; % Blue, Magenta, Green, Cyan, Red, Purple
+
+% Subplot 1: 2.4 GHz (Direct Ray + Reflections)
+subplot(2,1,1);
+hold on;
+plot(x,20*log10(abs(total_ray(:,1,1))),'LineStyle','--','Color',colors{1},'LineWidth',1.5,'DisplayName','Direct');
+for order=1:5
+    plot(x,20*log10(abs(total_ray(:,1,order+1))),'Color',colors{order+1},'LineWidth',1.5,'DisplayName',[num2str(order),'th Order']);
+end
+title('Electric Field at 2.4 GHz');
+xlabel('Distance/m');
+ylabel('E-field/dB');
+grid on;
+legend('Location','best');
+
+% Subplot 2: 5.8 GHz (Direct Ray + Reflections)
+subplot(2,1,2);
+hold on;
+plot(x,20*log10(abs(total_ray(:,2,1))),'LineStyle','--','Color',colors{1},'LineWidth',1.5,'DisplayName','Direct');
+for order=1:5
+    plot(x,20*log10(abs(total_ray(:,2,order+1))),'Color',colors{order+1},'LineWidth',1.5,'DisplayName',[num2str(order),'th Order']);
+end
+title('Electric Field at 5.8 GHz');
+xlabel('Distance/m');
+ylabel('E-field/dB');
+grid on;
+legend('Location','best');
+
+%% 3D Plot 
+% Create a 3D grid for x and z
+z=0:0.1:10; % assume the height from the ground to the ceiling is 0 to 10
+[X,Z]=meshgrid(x,z);
+
+% asssign 3d array for both frequency 
+E_total_3D=zeros(size(X,1),size(X,2),2);
+
+
+for i=1:2
+    % distance for direct ray 
+    R_direct=sqrt((X-tx(1)).^2+(p(2)-tx(2)).^2+(Z-0).^2);
+    
+    % electric field for direct ray
+    E_direct_3D=(1./R_direct).*exp(-1j.*beta(i).*R_direct);
+    
+    % Initialize total field with direct field
+    E_total_3D(:,:,i)=E_direct_3D;
+    
+   %1st to 5th order relfection 
+    for order=1:5
+        % Top reflection distance
+        R_top=sqrt((X-tx_top(1)).^2+(p(2)-tx_top(2)).^2+(Z-0).^2);
+        
+        % Bottom reflection distance
+        R_bottom=sqrt((X-tx_bottom(1)).^2+(p(2)-tx_bottom(2)).^2+(Z-0).^2);
+        
+        % Top and bottom reflected fields
+        E_top=gamma.*(1./(order*R_top)).*exp(-1j.*(beta(i).*order.*R_top+pi.*order));
+        E_bottom=gamma.*(1./(order*R_bottom)).*exp(-1j.*(beta(i).*order.*R_bottom+pi.*order));
+        
+        % Add reflected fields to total field
+        E_total_3D(:,:,i)=E_total_3D(:,:,i)+E_top+E_bottom;
+    end
+end
+
+% Convert to dB
+E_total_3D_db=20*log10(abs(E_total_3D));
+
+% Plot 3D field for 2.4 GHz
+figure;
+surf(X,Z,E_total_3D_db(:,:,1),'EdgeColor','none');
+colormap jet;
+colorbar;
+title('3D E-field Distribution at 2.4 GHz');
+xlabel('X (m)');
+ylabel('Z (m)');
+zlabel('E-field (dB)');
+view(3);
+
+% Plot 3D field for 5.8 GHz
+figure;
+surf(X,Z,E_total_3D_db(:,:,2),'EdgeColor','none');
+colormap jet;
+colorbar;
+title('3D E-field Distribution at 5.8 GHz');
+xlabel('X (m)');
+ylabel('Z (m)');
+zlabel('E-field (dB)');
+view(3);
